@@ -16,7 +16,6 @@ def send_habit_reminders():
     """Рассылает уведомления о привычках, которые нужно выполнить"""
     bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
     now = timezone.localtime(timezone.now())
-    current_time = now.time()
     time_window_start = (now - timedelta(minutes=1)).time()
     time_window_end = (now + timedelta(minutes=1)).time()
 
