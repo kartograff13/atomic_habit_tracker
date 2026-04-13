@@ -394,7 +394,7 @@ class JWTAuthenticationTest(APITestCase):
 
     def test_jwt_token_refresh(self):
         """Обновление токена по refresh"""
-        user = User.objects.create_user(username="test", password="testpass")
+        User.objects.create_user(username="test", password="testpass")
 
         url_create = reverse("jwt-create")
         response = self.client.post(url_create, {"username": "test", "password": "testpass"})
