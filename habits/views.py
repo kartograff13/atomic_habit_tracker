@@ -6,47 +6,33 @@ from habits.serializers import HabitSerializer
 
 
 class HabitListCreateView(generics.ListCreateAPIView):
-    """
-    Представление для получения списка привычек пользователя и создание новой.
-
-    Доступно только аутентифицированным пользователям. При создании привычки
-    текущий пользователь автоматически становится её владельцем. При получении
-    списка возвращаются только привычки, принадлежащие текущему пользователю.
-    """
+    """Представление для получения списка привычек пользователя и создание новой"""
 
     serializer_class = HabitSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Habit.objects.filter(user=self.request.user)
+        return Habit.objects.filter(user=self.request.user).order_by("id")
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
 
 class HabitRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    """
-    Представление для получения, обновления и удаления конкретной привычки.
-
-    Доступно только аутентифицированным пользователям, которые являются владельцем
-    привычки (проверка через кастомное разрешение IsOwner).
-    """
+    """Представление для получения, обновления и удаления конкретной привычки"""
 
     serializer_class = HabitSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwner]
-    queryset = Habit.objects.all()
+
+    def get_queryset(self):
+        return Habit.objects.filter(user=self.request.user).order_by("id")
 
 
 class PublicHabitListView(generics.ListAPIView):
-    """
-    Представление для получения списка публичных привычек.
-
-    Доступно только аутентифицированным пользователям. Возвращает все привычки,
-    у которых флаг `is_public` установлен в True. Не требует проверки владельца.
-    """
+    """Представление для получения списка публичных привычек"""
 
     serializer_class = HabitSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Habit.objects.filter(is_public=True)
+        return Habit.objects.filter(is_public=True).order_by("id")
