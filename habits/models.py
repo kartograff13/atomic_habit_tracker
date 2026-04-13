@@ -56,3 +56,13 @@ class Habit(models.Model):
     class Meta:
         verbose_name = "Привычка"
         verbose_name_plural = "Привычки"
+
+
+class TelegramProfile(models.Model):
+    """Модель для хранения Telegram-профиля пользователя"""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="telegram_profile")
+    telegram_chat_id = models.CharField(max_length=255, unique=True)
+
+    def __str__(self):
+        return f"{self.user.username}'s Telegram Profile"
