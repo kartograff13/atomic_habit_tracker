@@ -1,13 +1,17 @@
 from datetime import time
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from habits.models import Habit, TelegramProfile
+from habits.serializers import HabitSerializer
+from habits.tasks import send_habit_reminders
 
 User = get_user_model()
 
@@ -406,3 +410,193 @@ class JWTAuthenticationTest(APITestCase):
         url = reverse("habit-list")
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class HabitSerializerTest(APITestCase):
+    """Тесты сериализатора HabitSerializer (валидация, создание)"""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="serializer_test", password="pass")
+        self.pleasant = Habit.objects.create(
+            user=self.user,
+            place="Дом",
+            time=time(9, 0),
+            action="Пить воду",
+            is_pleasant=True,
+            periodicity=1,
+            duration=10,
+        )
+        self.valid_data = {
+            "place": "Парк",
+            "time": "08:00:00",
+            "action": "Бег",
+            "is_pleasant": False,
+            "periodicity": 1,
+            "duration": 90,
+            "reward": "Смузи",
+            "is_public": False,
+        }
+
+    def test_serializer_valid_data(self):
+        """Сериализатор принимает корректные данные"""
+        serializer = HabitSerializer(data=self.valid_data)
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(serializer.validated_data["action"], "Бег")
+
+    def test_serializer_reward_and_related_habit_mutually_exclusive(self):
+        """Ошибка при одновременном указании reward и related_habit"""
+        data = self.valid_data.copy()
+        data["related_habit"] = self.pleasant.id
+        serializer = HabitSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("non_field_errors", serializer.errors)
+        self.assertIn("Нельзя одновременно указать вознаграждение", str(serializer.errors))
+
+    def test_serializer_duration_exceeds_120(self):
+        """Ошибка, если duration > 120"""
+        data = self.valid_data.copy()
+        data["duration"] = 150
+        serializer = HabitSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("Время выполнения должно быть не более 120 секунд", str(serializer.errors))
+
+    def test_serializer_related_habit_must_be_pleasant(self):
+        """Ошибка, если связанная привычка не является приятной"""
+        non_pleasant = Habit.objects.create(
+            user=self.user,
+            place="Работа",
+            time=time(12, 0),
+            action="Совещание",
+            is_pleasant=False,
+            periodicity=1,
+            duration=30,
+        )
+        data = self.valid_data.copy()
+        data.pop("reward")
+        data["related_habit"] = non_pleasant.id
+        serializer = HabitSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("Связанная привычка должна быть приятной", str(serializer.errors))
+
+    def test_serializer_pleasant_habit_cannot_have_reward_or_related(self):
+        """Приятная привычка не может иметь reward или related_habit"""
+        data = {
+            "place": "Ванная",
+            "time": "21:00:00",
+            "action": "Ванна",
+            "is_pleasant": True,
+            "periodicity": 1,
+            "duration": 60,
+            "reward": "Пена",
+        }
+        serializer = HabitSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("У приятной привычки не может быть вознаграждения", str(serializer.errors))
+
+        data.pop("reward")
+        data["related_habit"] = self.pleasant.id
+        serializer = HabitSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("У приятной привычки не может быть вознаграждения", str(serializer.errors))
+
+    def test_serializer_periodicity_out_of_range(self):
+        """Периодичность должна быть 1-7"""
+        data = self.valid_data.copy()
+        data["periodicity"] = 8
+        serializer = HabitSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("Периодичность должна быть от 1 до 7 дней", str(serializer.errors))
+
+        data["periodicity"] = 0
+        serializer = HabitSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("Периодичность должна быть от 1 до 7 дней", str(serializer.errors))
+
+
+class CeleryTaskTest(TestCase):
+    """Тесты для Celery-задачи send_habit_reminders"""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="celeryuser", password="pass")
+        self.profile = TelegramProfile.objects.create(user=self.user, telegram_chat_id="123456")
+        now = timezone.localtime(timezone.now())
+        self.habit = Habit.objects.create(
+            user=self.user,
+            place="Дом",
+            time=now.time(),
+            action="Сделать зарядку",
+            is_pleasant=False,
+            periodicity=1,
+            duration=60,
+            reward="Кофе",
+        )
+        self.pleasant = Habit.objects.create(
+            user=self.user, place="Дом", time=now.time(), action="Чтение", is_pleasant=True, periodicity=1, duration=30
+        )
+        self.user2 = User.objects.create_user(username="noprofile", password="pass")
+        self.habit_no_profile = Habit.objects.create(
+            user=self.user2,
+            place="Улица",
+            time=now.time(),
+            action="Пробежка",
+            is_pleasant=False,
+            periodicity=1,
+            duration=50,
+        )
+
+    @patch("habits.tasks.Bot")
+    def test_send_habit_reminders_sends_message(self, mock_bot_class):
+        """Задача отправляет сообщение пользователю с привязанным Telegram"""
+        mock_bot = MagicMock()
+        mock_bot_class.return_value = mock_bot
+
+        send_habit_reminders()
+
+        mock_bot.send_message.assert_called_once()
+        args, kwargs = mock_bot.send_message.call_args
+        self.assertEqual(kwargs["chat_id"], "123456")
+        self.assertIn("Сделать зарядку", kwargs["text"])
+        self.assertIn("Кофе", kwargs["text"])
+
+    @patch("habits.tasks.Bot")
+    def test_send_habit_reminders_no_habits_in_window(self, mock_bot_class):
+        """Если привычек с нужным временем нет, сообщения не отправляются"""
+        past_time = (timezone.localtime(timezone.now()) - timezone.timedelta(minutes=10)).time()
+        self.habit.time = past_time
+        self.habit.save()
+
+        mock_bot = MagicMock()
+        mock_bot_class.return_value = mock_bot
+
+        send_habit_reminders()
+
+        mock_bot.send_message.assert_not_called()
+
+    @patch("habits.tasks.Bot")
+    def test_send_habit_reminders_handles_bot_exception(self, mock_bot_class):
+        """Исключение при отправке не прерывает задачу, ошибка логируется"""
+        mock_bot = MagicMock()
+        mock_bot.send_message.side_effect = Exception("Telegram API error")
+        mock_bot_class.return_value = mock_bot
+
+        try:
+            send_habit_reminders()
+        except Exception:
+            self.fail("send_habit_reminders raised Exception unexpectedly")
+
+        mock_bot.send_message.assert_called_once()
+
+    @patch("habits.tasks.Bot")
+    def test_send_habit_reminders_no_reward_fallback(self, mock_bot_class):
+        """Если reward отсутствует, в сообщении пишется 'Приятная привычка'."""
+        self.habit.reward = None
+        self.habit.save()
+
+        mock_bot = MagicMock()
+        mock_bot_class.return_value = mock_bot
+
+        send_habit_reminders()
+
+        mock_bot.send_message.assert_called_once()
+        _, kwargs = mock_bot.send_message.call_args
+        self.assertIn("Приятная привычка", kwargs["text"])
