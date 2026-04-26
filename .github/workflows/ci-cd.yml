@@ -87,11 +87,9 @@ jobs:
             cd /opt/atomic_habit_tracker
             git remote set-url origin git@github.com:kartograff13/atomic_habit_tracker.git
             git config --local --unset-all credential.helper 2>/dev/null || true
-            {
-              set -x
-              git pull origin main
-              echo "${{ secrets.ENV_FILE }}" > .env
-              docker compose down
-              docker compose up -d --build
-            } > /tmp/deploy.log 2>&1
-            cat /tmp/deploy.log
+            git pull origin main
+
+            echo "${{ secrets.ENV_FILE }}" > .env
+
+            docker compose down --remove-orphans
+            docker compose up -d --build
