@@ -1,0 +1,14 @@
+__pycache__
+*.pyc
+*.pyo
+*.db
+*.sqlite3
+.venv
+.env
+.git
+.gitignore
+.pytest_cache
+static/
+media/
+celerybeat-schedule
+*.log
