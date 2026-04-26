@@ -85,6 +85,7 @@ jobs:
             cd /opt/atomic_habit_tracker
             git pull origin main
             echo "${{ secrets.ENV_FILE }}" > .env
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u kartograff13 --password-stdin
             docker compose down
             docker compose pull
             docker compose up -d --build
