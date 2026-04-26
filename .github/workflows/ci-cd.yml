@@ -91,5 +91,5 @@ jobs:
 
             echo "${{ secrets.ENV_FILE }}" > .env
 
-            docker compose down 2>&1 | tee /tmp/docker-down.log
-            docker compose up -d --build 2>&1 | tee /tmp/docker-up.log
+            docker compose down --remove-orphans
+            docker compose up -d --build
