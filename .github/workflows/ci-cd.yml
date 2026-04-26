@@ -86,6 +86,7 @@ jobs:
             export GIT_SSH_COMMAND="ssh -i /home/test1/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
             cd /opt/atomic_habit_tracker
             git remote set-url origin git@github.com:kartograff13/atomic_habit_tracker.git
+            git config --local --unset-all credential.helper 2>/dev/null || true
             git pull origin main
             echo "${{ secrets.ENV_FILE }}" > .env
             docker compose down
