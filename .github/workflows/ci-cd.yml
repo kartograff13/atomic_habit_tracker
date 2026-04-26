@@ -83,7 +83,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /opt/atomic_habit_tracker
-            git pull origin main
+            git pull https://kartograff13:${{ secrets.GH_PAT }}@github.com/kartograff13/atomic_habit_tracker.git main
             echo "${{ secrets.ENV_FILE }}" > .env
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u kartograff13 --password-stdin
             docker compose down
