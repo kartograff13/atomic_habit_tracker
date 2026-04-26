@@ -82,8 +82,10 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            export HOME=/home/test1
+            export GIT_SSH_COMMAND="ssh -i /home/test1/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
             cd /opt/atomic_habit_tracker
-            git pull https://x-access-token:${{ secrets.GH_PAT }}@github.com/kartograff13@atomic_habit_tracker.git main
+            git pull origin main
             echo "${{ secrets.ENV_FILE }}" > .env
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u kartograff13 --password-stdin
             docker compose down
