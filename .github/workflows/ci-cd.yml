@@ -83,6 +83,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /opt/atomic_habit_tracker
+            export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes"
             git pull origin main
             echo "${{ secrets.ENV_FILE }}" > .env
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u kartograff13 --password-stdin
