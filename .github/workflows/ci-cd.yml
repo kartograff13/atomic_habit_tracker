@@ -75,26 +75,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy via direct SSH
+      - name: Deploy via server script
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          
-          ssh -i ~/.ssh/id_ed25519 \
+          echo "${{ secrets.ENV_FILE }}" | ssh -i ~/.ssh/id_ed25519 \
               -o StrictHostKeyChecking=no \
-              -o IdentitiesOnly=yes \
               ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-              'bash -s' << 'EOSSH'
-          set -x
-          export HOME=/home/test1
-          export GIT_SSH_COMMAND="ssh -i /home/test1/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
-          cd /opt/atomic_habit_tracker
-          git remote set-url origin git@github.com:kartograff13/atomic_habit_tracker.git
-          git config --local --unset-all credential.helper 2>/dev/null || true
-          git pull origin main
-          echo "${{ secrets.ENV_FILE }}" | base64 -d > .env
-          
-          docker compose down --remove-orphans
-          docker compose up -d --build
-          EOSSH
+              "base64 -d > /opt/atomic_habit_tracker/.env && bash /home/test1/deploy.sh"
