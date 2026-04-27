@@ -88,7 +88,7 @@ jobs:
             git remote set-url origin git@github.com:kartograff13/atomic_habit_tracker.git
             git config --local --unset-all credential.helper 2>/dev/null || true
             git pull origin main
-            echo "${{ secrets.ENV_FILE }}" > .env
+            echo "${{ secrets.ENV_FILE }}" | base64 -d > .env
             
             # Удаляем ВСЕ возможные сохранённые Docker-credentials
             rm -f /home/test1/.docker/config.json /root/.docker/config.json
