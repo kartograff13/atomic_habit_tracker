@@ -81,6 +81,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          debug: true
           script: |
             export HOME=/home/test1
             export GIT_SSH_COMMAND="ssh -i /home/test1/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
