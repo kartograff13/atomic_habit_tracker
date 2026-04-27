@@ -76,17 +76,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy to server via SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          
-          ssh -i ~/.ssh/id_ed25519 \
-              -o StrictHostKeyChecking=no \
-              -o IdentitiesOnly=yes \
-              -o PreferredAuthentications=publickey \
-              "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-              "bash -s" << 'EOSSH'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
             export HOME=/home/test1
             export GIT_SSH_COMMAND="ssh -i /home/test1/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
             cd /opt/atomic_habit_tracker
@@ -94,15 +89,12 @@ jobs:
             git config --local --unset-all credential.helper 2>/dev/null || true
             git pull origin main
             echo "${{ secrets.ENV_FILE }}" > .env
+            
+            # Удаляем ВСЕ возможные сохранённые Docker-credentials
+            rm -f /home/test1/.docker/config.json /root/.docker/config.json
+            docker logout ghcr.io 2>/dev/null || true
+            
             docker compose down --remove-orphans
             docker compose pull
             docker compose up -d
-          EOSSH
-
-      - name: Read server log on failure
-        if: failure()
-        run: |
-          ssh -i ~/.ssh/id_ed25519 \
-              -o StrictHostKeyChecking=no \
-              "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-              "cat /tmp/docker-build.log || echo 'No log found'"
+          timeout: '20m'
