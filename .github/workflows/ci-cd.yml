@@ -75,12 +75,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup SSH and Deploy
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} 'bash -s' << 'EOSSH'
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
             export HOME=/home/test1
             export GIT_SSH_COMMAND="ssh -i /home/test1/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
             cd /opt/atomic_habit_tracker
@@ -88,9 +89,8 @@ jobs:
             git config --local --unset-all credential.helper 2>/dev/null || true
             git pull origin main
             echo "${{ secrets.ENV_FILE }}" > .env
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u kartograff13 --password-stdin
             docker compose down --remove-orphans
-            docker compose up -d --build 2>&1 | tee /tmp/docker-build.log
-            exit ${PIPESTATUS[0]}
-          EOSSH
-          echo "Deploy script finished, checking logs..."
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} 'cat /tmp/docker-build.log || cat /tmp/deploy.log || echo "No log found"'
+            docker compose pull
+            docker compose up -d
+          timeout: '20m'
