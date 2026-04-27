@@ -89,5 +89,8 @@ jobs:
             git pull origin main
             echo "${{ secrets.ENV_FILE }}" > .env
             docker compose down --remove-orphans
-            docker compose up -d --build
+            docker compose up -d --build 2>&1 | tee /tmp/docker-build.log
+            exit ${PIPESTATUS[0]}
           EOSSH
+          echo "Deploy script finished, checking logs..."
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} 'cat /tmp/docker-build.log || cat /tmp/deploy.log || echo "No log found"'
