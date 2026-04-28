@@ -42,7 +42,6 @@ jobs:
   build-docker:
     needs: test-and-lint
     runs-on: ubuntu-latest
-#    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
@@ -70,7 +69,6 @@ jobs:
   deploy:
     needs: build-docker
     runs-on: ubuntu-latest
-#    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - name: Install Docker Compose
