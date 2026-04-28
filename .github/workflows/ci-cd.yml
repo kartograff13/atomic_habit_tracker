@@ -84,3 +84,4 @@ jobs:
               -o StrictHostKeyChecking=no \
               ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
               "base64 -d > /opt/atomic_habit_tracker/.env && bash /home/test1/deploy.sh"
+
