@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feature/final_task ]
   pull_request:
     branches: [ main ]
 
@@ -92,7 +92,7 @@ jobs:
             sudo systemctl enable docker
           
             # Clone or pull repo (HTTPS)
-            cd /opt/atomic_habit_tracker || git clone https://github.com/Akmal-coder/hubit-tracker.git /opt/atomic_habit_tracker
+            cd /opt/atomic_habit_tracker || git clone https://github.com/kartograff13/atomic_habit_tracker.git /opt/atomic_habit_tracker
             cd /opt/atomic_habit_tracker
             git pull origin ${{ github.ref_name }}
           
